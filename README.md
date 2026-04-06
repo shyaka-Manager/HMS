@@ -1,47 +1,31 @@
 # Hospital Booking App
 
-This is a full-stack web app for hospital appointment booking.
+This repository contains a full-stack hospital appointment booking app.
 
-## What this app does
+## Overview
 
-1. Patients can see doctors and book appointments from the home page.
-2. Doctors can log in, view their patients, and manage their schedule.
-3. Admin can manage doctors, patients, and appointments.
+The app lets patients view doctors, book appointments, and receive confirmations, while giving doctors and admins a schedule-driven workflow for managing availability.
 
-## Tech used
+## What it does
 
-- Frontend: React + TypeScript + Vite
-- Backend: Node.js + Express
-- Database: MySQL (runs locally with XAMPP)
+1. Patients can filter doctors by specialty, department, or availability.
+2. Patients can book, view, or cancel upcoming appointments.
+3. Doctors can manage schedule availability and appointment instructions.
+4. Admins can manage doctors, patients, and bookings.
 
-## Project folders
+## Project structure
 
-- Frontend: user interface and pages
-- Backend: API and database logic
+- Frontend: React + TypeScript + Vite UI
+- Backend: Node.js + Express API
+- Database: MySQL
 
-## Before you run
+## Setup
 
-Install these tools:
+Install Node.js and XAMPP first.
 
-1. Node.js (LTS version)
-2. XAMPP
+Create a MySQL database named `hospital_booking`, then configure `Backend/.env` with your local values.
 
-## Step 1: Setup MySQL in XAMPP
-
-1. Open XAMPP Control Panel.
-2. Start MySQL.
-3. Open phpMyAdmin.
-4. Create a new database named hospital_booking.
-
-## Step 2: Setup backend
-
-Open terminal in the Backend folder and run:
-
-```bash
-npm install
-```
-
-Create a file named .env inside Backend and add:
+Backend environment example:
 
 ```env
 PORT=8080
@@ -63,49 +47,30 @@ GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 ```
 
-Start backend:
+Run the backend:
 
 ```bash
+cd Backend
+npm install
 npm run start
 ```
 
-Backend runs at:
-
-http://localhost:8080
-
-## Step 3: Setup frontend
-
-Open terminal in the Frontend folder and run:
+Run the frontend:
 
 ```bash
+cd Frontend
 npm install
 npm run dev
 ```
 
-Frontend runs at:
+## Helpful routes
 
-http://localhost:5173
+- `GET /health`
+- `GET /doctors/all-doctors`
+- `POST /appointments/book-appointment`
+- `POST /user/login`
+- `GET /stats/at-a-glance`
 
-## Quick test
+## Notes
 
-1. Open frontend in browser.
-2. Check Featured Doctors section (data comes from database).
-3. Try Book Appointment on home page.
-4. Use Admin Login and Doctor Login buttons to test role-based panels.
-
-## Helpful backend routes
-
-- GET /health
-- GET /doctors/all-doctors
-- POST /appointments/book-appointment
-- POST /user/login
-- GET /stats/at-a-glance
-
-## Common issue
-
-If backend stops with exit code 1:
-
-1. Confirm MySQL is running in XAMPP.
-2. Confirm database hospital_booking exists.
-3. Check Backend .env values (host, port, username, password).
-4. Run backend again.
+The scheduling model is intended to support dynamic slot generation, conflict prevention, and real-time updates when appointments are booked or canceled.
