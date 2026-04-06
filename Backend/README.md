@@ -52,3 +52,6 @@ npm run start
 
 - Tables are synced automatically by Sequelize on startup.
 - Slot booking is now stored in MySQL (`slots` table), no MongoDB required.
+
+## database
+ the database schema is found in the backend folder

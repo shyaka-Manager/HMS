@@ -74,3 +74,7 @@ npm run dev
 ## Notes
 
 The scheduling model is intended to support dynamic slot generation, conflict prevention, and real-time updates when appointments are booked or canceled.
+
+
+
+
