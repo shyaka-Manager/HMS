@@ -36,3 +36,14 @@ State Management
 Redux (to handle real-time UI updates when a slot is taken).
 
 
+
+
+dependencies needed.
+
+1. dotenv
+2. express
+3. mysql2
+4. reactjs framework
+5. nodemon server for auto updates/ restarts
+
+
