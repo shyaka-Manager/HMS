@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Hospital Booking App
 
 This is a full-stack web app for hospital appointment booking.
@@ -109,3 +110,6 @@ If backend stops with exit code 1:
 2. Confirm database hospital_booking exists.
 3. Check Backend .env values (host, port, username, password).
 4. Run backend again.
+=======
+# hospital-booking-app
+>>>>>>> 8e10727e399a0836303b33ce92ba36ef1eb09826
