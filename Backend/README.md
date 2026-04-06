@@ -14,7 +14,6 @@ Create `.env` in this folder:
 ```env
 PORT=8080
 JWT_SECRET=your_jwt_secret
-SESSION_SECRET=your_session_secret
 
 SQL_HOST=127.0.0.1
 SQL_PORT=3306
@@ -24,9 +23,6 @@ SQL_PASSWORD=
 
 FRONTEND_URL=http://localhost:5173
 API_BASE_URL=http://localhost:8080
-
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 ```

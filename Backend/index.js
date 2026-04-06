@@ -4,8 +4,6 @@ const { UserRouter } = require("./routes/users.routes");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const cors = require("cors");
-const session = require("express-session");
-const passport = require("passport");
 const bcrypt = require("bcrypt");
 const { sequelize } = require("./config/db");
 const { User } = require("./models/user");
@@ -48,16 +46,6 @@ app.use(express.json());
 app.use(cors());
 app.use(cookieParser());
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "hospital-booking-app",
-    resave: false,
-    saveUninitialized: false,
-  })
-);
-app.use(passport.initialize());
-app.use(passport.session());
-
 app.use("/user", UserRouter);
 app.use("/appointments", AppointmentRouter);
 app.use("/doctors", DoctorRouter);
@@ -65,20 +53,6 @@ app.use("/doctors", DoctorRouter);
 app.get("/", (req, res) => {
   res.send("Hospital Booking API is running");
 });
-
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: `${FRONTEND_URL}/login`,
-  }),
-  (req, res) => {
-    try {
-      res.redirect(`${process.env.API_BASE_URL || `http://localhost:${PORT}`}/user/google-verify`);
-    } catch (error) {
-      res.send(error.message);
-    }
-  }
-);
 app.get("/auth/github", async (req, res) => {
   const { code } = req.query;
 
