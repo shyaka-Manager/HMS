@@ -15,7 +15,7 @@ The app lets patients view doctors, book appointments, and receive confirmations
 
 ## Project structure
 
-- Frontend: React + TypeScript + Vite UI
+- Frontend: React + javascript + Vite UI
 - Backend: Node.js + Express API
 - Database: MySQL
 
