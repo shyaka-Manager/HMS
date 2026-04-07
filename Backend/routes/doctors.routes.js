@@ -5,12 +5,12 @@ const { authentication } = require("../middlewares/authentication");
 const { auth } = require("../middlewares/auth");
 const DoctorRouter = express.Router();
 
-// const db = require("../models");
 const { Doctors } = require("../models/doctors");
 const { Descdoctors } = require("../models/descdoctors");
 const { Appointments } = require("../models/appointments");
 const { User } = require("../models/user");
 
+//Function to find which doctor is currently logged in based on their email
 const getDoctorByAuthUser = async (req) => {
   const email = req.user?.dataValues?.email;
   if (!email) {
@@ -24,14 +24,15 @@ const getDoctorByAuthUser = async (req) => {
   });
 };
 
+/* --- Fetch detailed info for one specific doctor --- */
 DoctorRouter.get("/single-doctor/:id", async (req, res) => {
   try {
-    // create association between doctors and descdoctors table(imp)
+    // Tell the database that Doctors and their Descriptions are linked
     Doctors.hasOne(Descdoctors, {
       foreignKey: "doctor_id",
     });
 
-    // join the doctors and descdoctors table and  get the complete data of the doctor
+    // Pull the doctor data and "join" it with their extra details (bio, awards, etc.)
     const doctor = await Doctors.findOne({
       where: {
         id: req.params.id,
@@ -54,6 +55,7 @@ DoctorRouter.get("/single-doctor/:id", async (req, res) => {
   }
 });
 
+/* --- Admin Only: Add a new doctor to the system --- */
 DoctorRouter.post(
   "/add-doctor",
   authentication,
@@ -80,11 +82,13 @@ DoctorRouter.post(
         mobile,
       } = req.body;
 
+      // Basic validation to make sure the main fields aren't empty
       if (!name || !email || !speciality || !department || !fee) {
         res.status(400).json({ msg: "name, email, speciality, department and fee are required" });
         return;
       }
 
+      // Create the main doctor profile
       const doctor = await Doctors.create({
         name,
         email,
@@ -100,6 +104,7 @@ DoctorRouter.post(
         return res.status(400).json({ msg: "Could not add Doctor" });
       }
 
+      // Create the detailed description row for this doctor using their new ID
       await Descdoctors.create({
         education: education || "Not specified",
         Professional: Professional || "Not specified",
@@ -112,6 +117,7 @@ DoctorRouter.post(
         doctor_id: doctor.id,
       });
 
+      // Also create a Login account for the doctor so they can sign in later
       const existingDoctorUser = await User.findOne({
         where: {
           email,
@@ -120,7 +126,7 @@ DoctorRouter.post(
 
       if (!existingDoctorUser) {
         const doctorPassword = password || "doctor123";
-        const hash = bcrypt.hashSync(doctorPassword, 5);
+        const hash = bcrypt.hashSync(doctorPassword, 5); // Hashing the password for security
         await User.create({
           name,
           email,
@@ -140,6 +146,7 @@ DoctorRouter.post(
   }
 );
 
+/* --- Getting the list of all doctors --- */
 DoctorRouter.get("/all-doctors", async (req, res) => {
   try {
     const doctors = await Doctors.findAll({});
@@ -151,30 +158,35 @@ DoctorRouter.get("/all-doctors", async (req, res) => {
   }
 });
 
+/* --- Admin Only: Completely remove a doctor --- */
 DoctorRouter.delete(
   "/delete-doctor/:id",
   authentication,
   auth(["admin"]),
   async (req, res) => {
     try {
+
       const doctor = await Doctors.findOne({
         where: {
           id: req.params.id,
         },
       });
 
+    
       await Doctors.destroy({
         where: {
           id: req.params.id,
         },
       });
 
+      
       await Descdoctors.destroy({
         where: {
           doctor_id: req.params.id,
         },
       });
 
+      
       if (doctor?.dataValues?.email) {
         await User.destroy({
           where: {
@@ -193,6 +205,7 @@ DoctorRouter.delete(
   }
 );
 
+/* --- Admin Only: Updating doctor info --- */
 DoctorRouter.patch(
   "/update-doctor/:id",
   authentication,
@@ -214,6 +227,7 @@ DoctorRouter.patch(
   }
 );
 
+/* --- Admin Only: Updating doctor biography info --- */
 DoctorRouter.patch(
   "/update-descdoctor/:id",
   authentication,
@@ -235,6 +249,7 @@ DoctorRouter.patch(
   }
 );
 
+/* --- Doctor Only: See a list of patients who have appointments--- */
 DoctorRouter.get(
   "/my-patients",
   authentication,
@@ -248,6 +263,7 @@ DoctorRouter.get(
         return;
       }
 
+      // Find all appointments for this specific doctor
       const appointments = await Appointments.findAll({
         where: {
           doctorId: doctor.dataValues.id,
@@ -257,6 +273,7 @@ DoctorRouter.get(
 
       const patientIds = [...new Set(appointments.map((item) => item.dataValues.patientId))];
 
+      // Fetch the names and contact info for those patients
       const patients = patientIds.length
         ? await User.findAll({
             where: {
@@ -279,6 +296,7 @@ DoctorRouter.get(
   }
 );
 
+/* --- Doctor Only: View work schedule --- */
 DoctorRouter.get(
   "/my-schedule",
   authentication,
@@ -291,7 +309,7 @@ DoctorRouter.get(
         res.status(404).json({ msg: "Doctor profile not found for this account" });
         return;
       }
-
+      
       let schedule = [];
       try {
         schedule = JSON.parse(doctor.dataValues.schedule || "[]");
@@ -309,6 +327,7 @@ DoctorRouter.get(
   }
 );
 
+/* --- Doctor Only: Update work hours/days --- */
 DoctorRouter.put(
   "/my-schedule",
   authentication,
