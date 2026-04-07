@@ -1,20 +1,18 @@
-const Sequelize = require("sequelize");
+const mysql = require('mysql2');
 
-const sequelize = new Sequelize(
-  process.env.SQL_DATABASENAME,
-  process.env.SQL_USERNAME,
-  process.env.SQL_PASSWORD,
-  {
-    host: process.env.SQL_HOST || "127.0.0.1",
-    port: Number(process.env.SQL_PORT || 3306),
-    dialect: "mysql",
-    logging: false,
-    define: {
-      freezeTableName: true,
-      timestamps: true,
-    },
-    timezone: "+00:00",
-  }
-);
+const db = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'hospital_system'
+});
 
-module.exports = { sequelize };
+db.connect(err => {
+    if (err) {
+      console.error('error connecting to mysql database: ', err)
+      return;
+    }
+    console.log('mysql database connected successfully');
+});
+
+module.exports = db;
