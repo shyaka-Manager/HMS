@@ -202,7 +202,7 @@ function App() {
                     className="delete-btn"
                     onClick={() => handleDelete(user.user_id)}
                   >
-                    Delete
+                    DELETE
                   </button>
                 </div>
               </div>

@@ -4,7 +4,7 @@
   box-sizing: border-box;
   font-family: Arial, sans-serif;
 }
-
+ 
 body {
   background: #1c2c2588;
   color: #e2e8f0;
@@ -15,7 +15,7 @@ body {
   min-height: 100vh;
 }
 
-/* Left Panel */
+
 .left-panel {
   width: 360px;
   background: #1c2c2588;
