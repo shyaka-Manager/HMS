@@ -78,3 +78,9 @@ api documentaion of all endpoints in our project can be found in the docs sectio
 ## api documentation link 
 
  https://documenter.getpostman.com/view/42136620/2sBXirhTKEs
+
+## Contributions
+
+This project has been contributed to by:
+
+- Belinda Kalinda – Added documentation update
