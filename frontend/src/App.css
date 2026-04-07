@@ -1,26 +1,28 @@
+/* --- Basic Setup --- */
 * {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
+  box-sizing: border-box; 
   font-family: Arial, sans-serif;
 }
- 
+
 body {
-  background: #1c2c2588;
-  color: #e2e8f0;
+  background: #1c2c2588; 
+  color: #e2e8f0; 
 }
 
+/* --- Layout --- */
 .container {
   display: flex;
-  min-height: 100vh;
+  min-height: 100vh; 
 }
 
-
+/* --- Left Sidebar --- */
 .left-panel {
   width: 360px;
   background: #1c2c2588;
   padding: 32px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08); 
 }
 
 .left-panel h1 {
@@ -29,9 +31,10 @@ body {
   color: #ffffff;
 }
 
+/* --- Form Controls --- */
 .user-form {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; 
   gap: 16px;
 }
 
@@ -44,17 +47,13 @@ body {
   background: #7889a351;
   color: #ffffff;
   outline: none;
-  transition: 0.2s ease;
+  transition: 0.2s ease; 
 }
 
-.user-form select option {
-  background: #0555cd51;
-  color: #ffffff;
-}
-
+/* When you click into an input box */
 .user-form input:focus,
 .user-form select:focus {
-  border-color: #38bdf8;
+  border-color: #38bdf8; 
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
 
@@ -62,6 +61,7 @@ body {
   color: #94a3b8;
 }
 
+/* --- Buttons --- */
 .button-group {
   display: flex;
   gap: 12px;
@@ -69,17 +69,16 @@ body {
 }
 
 .button-group button {
-  flex: 1;
+  flex: 1; 
   padding: 12px;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   font-weight: bold;
-  transition: 0.2s ease;
 }
 
 .button-group button[type='submit'] {
-  background: #3a682f;
+  background: #3a682f; 
   color: #ffffff;
 }
 
@@ -92,48 +91,30 @@ body {
   color: white;
 }
 
-.cancel-btn:hover {
-  background: #23421b;
-}
-
-.message {
-  margin-top: 20px;
-  padding: 14px;
-  border-radius: 10px;
-  background: #3a682f;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-/* Right Panel */
+/* --- Right Side Panel --- */
 .right-panel {
-  flex: 1;
+  flex: 1; 
   padding: 32px;
 }
 
 .header-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; 
   align-items: center;
   margin-bottom: 24px;
-}
-
-.header-row h2 {
-  font-size: 28px;
-  color: #ffffff;
 }
 
 .count {
   background: #3a682f;
   color: white;
   padding: 10px 16px;
-  border-radius: 999px;
-  font-weight: bold;
-  font-size: 14px;
+  border-radius: 999px; 
 }
 
+/* --- User Cards --- */
 .user-list {
   display: grid;
+ 
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
@@ -143,78 +124,27 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   padding: 20px;
-  transition: all 0.2s ease;
 }
 
+/* When you hover over a card */
 .user-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-4px); 
   border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-
-.user-card h3 {
-  color: #ffffff;
-  margin-bottom: 8px;
-  font-size: 20px;
-}
-
-.user-card p {
-  color: #94a3b8;
-  margin-bottom: 10px;
-  font-size: 14px;
-}
-
-.user-card strong {
-  color: #e2e8f0;
-}
-
-.card-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.card-buttons button {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: 0.2s ease;
-}
-
-.card-buttons button:first-child {
-  background: #3a682f;
-  color: white;
-}
-
-.card-buttons button:first-child:hover {
-  background: #2c5223;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); 
 }
 
 .delete-btn {
-  background: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.18); 
+  color: #f87171; 
 }
 
-.delete-btn:hover {
-  background: rgba(239, 68, 68, 0.3);
-}
-
-/* Responsive */
+/* --- Phone & Tablet View --- */
 @media (max-width: 900px) {
   .container {
-    flex-direction: column;
+    flex-direction: column; 
   }
 
-  .left-panel {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .right-panel {
-    width: 100%;
+  .left-panel, .right-panel {
+    width: 100%; /* Make everything full-width */
   }
 }
