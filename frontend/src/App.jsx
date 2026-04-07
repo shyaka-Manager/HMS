@@ -191,13 +191,13 @@ function App() {
           <div className="user-list">
             {users.map((user) => (
               <div className="user-card" key={user.user_id}>
-                <h3>{user.full_name}</h3>
-                <p>{user.email}</p>
-                <p><strong>Role:</strong> {user.role}</p>
+                <h3>{user.full_name} </h3>
+                <p>{user.email} </p>
+                <p><strong>Role:  </strong> {user.role}</p>
                 <p><strong>Phone:</strong> {user.phone_number}</p>
 
                 <div className="card-buttons">
-                  <button onClick={() => handleEdit(user)}>Edit</button>
+                  <button onClick={() => handleEdit(user)}>EDIT</button>
                   <button
                     className="delete-btn"
                     onClick={() => handleDelete(user.user_id)}
