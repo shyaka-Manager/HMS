@@ -41,5 +41,3 @@ const Descdoctors = sequelize.define("descdoctors", {
 });
 
 module.exports = { Descdoctors };
-
-

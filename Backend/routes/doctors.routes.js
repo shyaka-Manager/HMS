@@ -5,12 +5,13 @@ const { authentication } = require("../middlewares/authentication");
 const { auth } = require("../middlewares/auth");
 const DoctorRouter = express.Router();
 
+// const db = require("../models");
 const { Doctors } = require("../models/doctors");
 const { Descdoctors } = require("../models/descdoctors");
 const { Appointments } = require("../models/appointments");
 const { User } = require("../models/user");
+const { Slots } = require("../models/slots");
 
-//Function to find which doctor is currently logged in based on their email
 const getDoctorByAuthUser = async (req) => {
   const email = req.user?.dataValues?.email;
   if (!email) {
@@ -24,15 +25,25 @@ const getDoctorByAuthUser = async (req) => {
   });
 };
 
-/* --- Fetch detailed info for one specific doctor --- */
+const parseSchedule = (scheduleValue) => {
+  try {
+    const parsedSchedule = JSON.parse(scheduleValue || "[]");
+    return Array.isArray(parsedSchedule) ? parsedSchedule : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const createSlotKey = (slot) => `${slot.date}|${slot.time}`;
+
 DoctorRouter.get("/single-doctor/:id", async (req, res) => {
   try {
-    // Tell the database that Doctors and their Descriptions are linked
+    // create association between doctors and descdoctors table(imp)
     Doctors.hasOne(Descdoctors, {
       foreignKey: "doctor_id",
     });
 
-    // Pull the doctor data and "join" it with their extra details (bio, awards, etc.)
+    // join the doctors and descdoctors table and  get the complete data of the doctor
     const doctor = await Doctors.findOne({
       where: {
         id: req.params.id,
@@ -55,7 +66,45 @@ DoctorRouter.get("/single-doctor/:id", async (req, res) => {
   }
 });
 
-/* --- Admin Only: Add a new doctor to the system --- */
+DoctorRouter.get("/available-slots/:doctorId", async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+
+    const doctor = await Doctors.findOne({
+      where: {
+        id: doctorId,
+      },
+    });
+
+    if (!doctor) {
+      res.status(400).json({ msg: "Doctor does not exist" });
+      return;
+    }
+
+    const schedule = parseSchedule(doctor.dataValues.schedule);
+    const bookedSlots = await Slots.findAll({
+      where: {
+        doctorId,
+        isBooked: true,
+      },
+    });
+
+    const bookedSlotSet = new Set(
+      bookedSlots.map((slot) => createSlotKey(slot.dataValues)),
+    );
+
+    const availableSlots = schedule.filter(
+      (slot) => !bookedSlotSet.has(createSlotKey(slot)),
+    );
+
+    res.status(200).json({
+      availableSlots,
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Something went wrong" });
+  }
+});
+
 DoctorRouter.post(
   "/add-doctor",
   authentication,
@@ -82,13 +131,13 @@ DoctorRouter.post(
         mobile,
       } = req.body;
 
-      // Basic validation to make sure the main fields aren't empty
       if (!name || !email || !speciality || !department || !fee) {
-        res.status(400).json({ msg: "name, email, speciality, department and fee are required" });
+        res.status(400).json({
+          msg: "name, email, speciality, department and fee are required",
+        });
         return;
       }
 
-      // Create the main doctor profile
       const doctor = await Doctors.create({
         name,
         email,
@@ -104,7 +153,6 @@ DoctorRouter.post(
         return res.status(400).json({ msg: "Could not add Doctor" });
       }
 
-      // Create the detailed description row for this doctor using their new ID
       await Descdoctors.create({
         education: education || "Not specified",
         Professional: Professional || "Not specified",
@@ -117,7 +165,6 @@ DoctorRouter.post(
         doctor_id: doctor.id,
       });
 
-      // Also create a Login account for the doctor so they can sign in later
       const existingDoctorUser = await User.findOne({
         where: {
           email,
@@ -126,7 +173,7 @@ DoctorRouter.post(
 
       if (!existingDoctorUser) {
         const doctorPassword = password || "doctor123";
-        const hash = bcrypt.hashSync(doctorPassword, 5); // Hashing the password for security
+        const hash = bcrypt.hashSync(doctorPassword, 5);
         await User.create({
           name,
           email,
@@ -143,10 +190,9 @@ DoctorRouter.post(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Getting the list of all doctors --- */
 DoctorRouter.get("/all-doctors", async (req, res) => {
   try {
     const doctors = await Doctors.findAll({});
@@ -158,35 +204,30 @@ DoctorRouter.get("/all-doctors", async (req, res) => {
   }
 });
 
-/* --- Admin Only: Completely remove a doctor --- */
 DoctorRouter.delete(
   "/delete-doctor/:id",
   authentication,
   auth(["admin"]),
   async (req, res) => {
     try {
-
       const doctor = await Doctors.findOne({
         where: {
           id: req.params.id,
         },
       });
 
-    
       await Doctors.destroy({
         where: {
           id: req.params.id,
         },
       });
 
-      
       await Descdoctors.destroy({
         where: {
           doctor_id: req.params.id,
         },
       });
 
-      
       if (doctor?.dataValues?.email) {
         await User.destroy({
           where: {
@@ -202,10 +243,9 @@ DoctorRouter.delete(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Admin Only: Updating doctor info --- */
 DoctorRouter.patch(
   "/update-doctor/:id",
   authentication,
@@ -224,10 +264,9 @@ DoctorRouter.patch(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Admin Only: Updating doctor biography info --- */
 DoctorRouter.patch(
   "/update-descdoctor/:id",
   authentication,
@@ -246,10 +285,9 @@ DoctorRouter.patch(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Doctor Only: See a list of patients who have appointments--- */
 DoctorRouter.get(
   "/my-patients",
   authentication,
@@ -259,21 +297,26 @@ DoctorRouter.get(
       const doctor = await getDoctorByAuthUser(req);
 
       if (!doctor) {
-        res.status(404).json({ msg: "Doctor profile not found for this account" });
+        res
+          .status(404)
+          .json({ msg: "Doctor profile not found for this account" });
         return;
       }
 
-      // Find all appointments for this specific doctor
       const appointments = await Appointments.findAll({
         where: {
           doctorId: doctor.dataValues.id,
         },
-        order: [["date", "ASC"], ["time", "ASC"]],
+        order: [
+          ["date", "ASC"],
+          ["time", "ASC"],
+        ],
       });
 
-      const patientIds = [...new Set(appointments.map((item) => item.dataValues.patientId))];
+      const patientIds = [
+        ...new Set(appointments.map((item) => item.dataValues.patientId)),
+      ];
 
-      // Fetch the names and contact info for those patients
       const patients = patientIds.length
         ? await User.findAll({
             where: {
@@ -293,10 +336,9 @@ DoctorRouter.get(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Doctor Only: View work schedule --- */
 DoctorRouter.get(
   "/my-schedule",
   authentication,
@@ -306,16 +348,13 @@ DoctorRouter.get(
       const doctor = await getDoctorByAuthUser(req);
 
       if (!doctor) {
-        res.status(404).json({ msg: "Doctor profile not found for this account" });
+        res
+          .status(404)
+          .json({ msg: "Doctor profile not found for this account" });
         return;
       }
-      
-      let schedule = [];
-      try {
-        schedule = JSON.parse(doctor.dataValues.schedule || "[]");
-      } catch (error) {
-        schedule = [];
-      }
+
+      const schedule = parseSchedule(doctor.dataValues.schedule);
 
       res.status(200).json({
         doctorId: doctor.dataValues.id,
@@ -324,10 +363,9 @@ DoctorRouter.get(
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Doctor Only: Update work hours/days --- */
 DoctorRouter.put(
   "/my-schedule",
   authentication,
@@ -344,7 +382,9 @@ DoctorRouter.put(
       const doctor = await getDoctorByAuthUser(req);
 
       if (!doctor) {
-        res.status(404).json({ msg: "Doctor profile not found for this account" });
+        res
+          .status(404)
+          .json({ msg: "Doctor profile not found for this account" });
         return;
       }
 
@@ -356,14 +396,14 @@ DoctorRouter.put(
           where: {
             id: doctor.dataValues.id,
           },
-        }
+        },
       );
 
       res.status(200).json({ msg: "Schedule updated successfully" });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
 module.exports = { DoctorRouter };

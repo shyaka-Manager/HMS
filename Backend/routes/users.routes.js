@@ -3,20 +3,89 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { auth } = require("../middlewares/auth");
 require("dotenv").config();
+// const db = require("../models/index");
 const { User } = require("../models/user");
 const { authentication } = require("../middlewares/authentication");
 const UserRouter = express.Router();
 
-/* --- User Registration (Signup) --- */
+// new code for google auth
+const passport = require("../oauths/google.oauth");
+const { v4: uuidv4 } = require("uuid");
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+
+// Initialize Passport.js
+UserRouter.use(passport.initialize());
+UserRouter.use(passport.session());
+
+// Set up Google authentication route (hit this to start the Google authentication process)
+UserRouter.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] }),
+);
+
+// Set up routes (after the verification is done by hitting this route user will be redirected to the home page with the user details, also save the user details in the database here)
+UserRouter.get("/google-verify", async (req, res) => {
+  try {
+    // check if the email is verified from the googel if not send error
+    if (!req.user || !req.user.emails[0].verified || !req.user.id) {
+      res.status(400).json({ msg: "Invalid access to route" });
+      return;
+    }
+
+    const { displayName, emails } = req.user;
+
+    const user = {
+      name: displayName,
+      email: emails[0].value,
+      password: uuidv4(),
+      mobile: "0000000000",
+      role: "user",
+    };
+
+    // save the user details in the database here
+    const userInDb = await User.findOne({
+      where: {
+        email: user.email,
+      },
+    });
+
+    if (!userInDb) {
+      await User.create(user);
+    }
+    //  send the token to the frontend
+    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET, {
+      expiresIn: "7h",
+    });
+
+    res.redirect(`${FRONTEND_URL}?token=${token}&userName=${displayName}`);
+  } catch (error) {
+    res.status(500).json({ msg: "Something went wrong*", error });
+  }
+});
+
+// route to get the cookies
+UserRouter.get("/get-cookies", (req, res) => {
+  try {
+    res.json({ cookies: req.cookies }); // send the cookies as a JSON response
+  } catch (error) {
+    res.status(500).json({ msg: "Something went wrong**", error });
+  }
+  // send the cookies as a JSON response
+});
+
+// ------------------ google authentication  ends---------------------
+
+// -------------------- Normal routes -------------------------
+
 UserRouter.post("/signup", async (req, res) => {
   const { name, email, password, mobile, role } = req.body;
 
-  // Hashing the password 
   const hash = bcrypt.hashSync(password, 5);
   try {
-    // Check if the email is already being used
     const user = await User.findOne({
-      where: { email },
+      where: {
+        email,
+      },
     });
 
     if (user) {
@@ -24,7 +93,6 @@ UserRouter.post("/signup", async (req, res) => {
       return;
     }
 
-    // Save new user to the database
     const data = await User.create({
       name,
       email,
@@ -43,26 +111,32 @@ UserRouter.post("/signup", async (req, res) => {
   }
 });
 
-/* --- User Login --- */
 UserRouter.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({
-      where: { email },
+      where: {
+        email,
+      },
     });
-    
+
     if (!user) {
       res.status(400).json({ msg: "User does not exist" });
       return;
     }
+
     bcrypt.compare(password, user.password, (err, result) => {
       if (result) {
-
         const token = jwt.sign(
-          { email: user.email },
+          {
+            email: user.email,
+          },
           process.env.JWT_SECRET,
-          { expiresIn: "7h" }
+          {
+            expiresIn: "7h",
+          },
         );
+
         if (user.dataValues.role == "admin") {
           res.status(200).json({
             token,
@@ -89,7 +163,6 @@ UserRouter.post("/login", async (req, res) => {
   }
 });
 
-/* --- Get profile details of the logged-in user --- */
 UserRouter.get("/userDetails", authentication, async (req, res) => {
   try {
     if (!req.user) {
@@ -104,9 +177,9 @@ UserRouter.get("/userDetails", authentication, async (req, res) => {
   }
 });
 
-/* --- Basic Logout --- */
 UserRouter.get("/logout", authentication, (req, res) => {
   try {
+    const token = req.header("Authorization").split(" ")[1];
     res.status(200).json({
       message: "Logged out successfully",
     });
@@ -115,85 +188,127 @@ UserRouter.get("/logout", authentication, (req, res) => {
   }
 });
 
-/* --- Admin Only: Manage Users --- */
-
-// Get a list of every single person in the database
-UserRouter.get("/all-users", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.get(
+  "/all-users",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const users = await User.findAll();
-      res.status(200).json({ users });
+      res.status(200).json({
+        users,
+      });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-// Delete a user account based off their IDs
-UserRouter.delete("/delete-user/:id", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.delete(
+  "/delete-user/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const { id } = req.params;
-      const user = await User.findOne({ where: { id } });
+      const user = await User.findOne({
+        where: {
+          id,
+        },
+      });
 
       if (!user) {
         res.status(400).json({ msg: "User does not exist" });
         return;
       }
 
-      await User.destroy({ where: { id } });
+      await User.destroy({
+        where: {
+          id,
+        },
+      });
+
       res.status(200).json({ msg: "User deleted" });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-// Edit user information (Admin tool)
-UserRouter.put("/update-user/:id", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.put(
+  "/update-user/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const { id } = req.params;
       const updatedValues = req.body;
 
-      const user = await User.findOne({ where: { id } });
+      const user = await User.findOne({
+        where: {
+          id,
+        },
+      });
 
       if (!user) {
         res.status(400).json({ msg: "User does not exist" });
         return;
       }
 
-      await User.update(updatedValues, { where: { id } });
+      await User.update(updatedValues, {
+        where: {
+          id,
+        },
+      });
+
       res.status(200).json({ msg: "User updated" });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Admin Only: Specific Patient Management --- */
-
-// View only users who are "patients" (role: user)
-UserRouter.get("/admin/patients", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.get(
+  "/admin/patients",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const patients = await User.findAll({
-        where: { role: "user" },
-        attributes: ["id", "name", "email", "mobile", "role", "createdAt"], // Hide passwords in this list
+        where: {
+          role: "user",
+        },
+        attributes: ["id", "name", "email", "mobile", "role", "createdAt"],
       });
+
       res.status(200).json({ patients });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-UserRouter.post("/admin/patients", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.post(
+  "/admin/patients",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const { name, email, password, mobile } = req.body;
 
       if (!name || !email || !password || !mobile) {
-        res.status(400).json({ msg: "name, email, password and mobile are required" });
+        res
+          .status(400)
+          .json({ msg: "name, email, password and mobile are required" });
         return;
       }
 
-      const existing = await User.findOne({ where: { email } });
+      const existing = await User.findOne({
+        where: {
+          email,
+        },
+      });
+
       if (existing) {
         res.status(400).json({ msg: "Patient email already exists" });
         return;
@@ -212,16 +327,23 @@ UserRouter.post("/admin/patients", authentication, auth(["admin"]), async (req, 
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-UserRouter.put("/admin/patients/:id", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.put(
+  "/admin/patients/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const { id } = req.params;
       const { name, mobile, password } = req.body;
 
       const patient = await User.findOne({
-        where: { id, role: "user" },
+        where: {
+          id,
+          role: "user",
+        },
       });
 
       if (!patient) {
@@ -239,23 +361,32 @@ UserRouter.put("/admin/patients/:id", authentication, auth(["admin"]), async (re
       }
 
       await User.update(updatePayload, {
-        where: { id, role: "user" },
+        where: {
+          id,
+          role: "user",
+        },
       });
 
       res.status(200).json({ msg: "Patient updated successfully" });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-// Admin deleting a patient account
-UserRouter.delete("/admin/patients/:id", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.delete(
+  "/admin/patients/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const { id } = req.params;
 
       const deleted = await User.destroy({
-        where: { id, role: "user" },
+        where: {
+          id,
+          role: "user",
+        },
       });
 
       if (!deleted) {
@@ -267,20 +398,30 @@ UserRouter.delete("/admin/patients/:id", authentication, auth(["admin"]), async 
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-// List of everyone with the "admin" role
-UserRouter.get("/all-admins", authentication, auth(["admin"]), async (req, res) => {
+UserRouter.get(
+  "/all-admins",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
     try {
       const admins = await User.findAll({
-        where: { role: "admin" },
+        where: {
+          role: "admin",
+        },
       });
-      res.status(200).json({ admins });
+
+      res.status(200).json({
+        admins,
+      });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-module.exports = { UserRouter };
+module.exports = {
+  UserRouter,
+};

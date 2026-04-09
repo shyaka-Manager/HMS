@@ -44,4 +44,3 @@ const Doctors = sequelize.define("doctors", {
 });
 
 module.exports = { Doctors };
-

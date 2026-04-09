@@ -1,12 +1,13 @@
 const express = require("express");
+
 const { authentication } = require("../middlewares/authentication");
+
 const AppointmentRouter = express.Router();
 
 const Sequelize = require("sequelize");
 const bcrypt = require("bcrypt");
 const { v4: uuidv4 } = require("uuid");
 
-// Importing our database models
 const { Appointments } = require("../models/appointments");
 const { auth } = require("../middlewares/auth");
 const { Slots } = require("../models/slots");
@@ -15,35 +16,60 @@ const { User } = require("../models/user");
 
 const { Op } = Sequelize;
 
-/* --- Book a new appointment --- */
+const parseSchedule = (scheduleValue) => {
+  try {
+    const parsedSchedule = JSON.parse(scheduleValue || "[]");
+    return Array.isArray(parsedSchedule) ? parsedSchedule : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const removeBookedSlot = (schedule, date, time) =>
+  schedule.filter((slot) => !(slot.date === date && slot.time === time));
+
 AppointmentRouter.post("/book-appointment", async (req, res) => {
   try {
-    const { doctorName, date, time, doctorId, patientName, patientEmail } = req.body;
+    const { doctorName, date, time, doctorId, patientName, patientEmail } =
+      req.body;
 
-   
-    if (!doctorName || !date || !time || !doctorId || !patientName || !patientEmail) {
+    if (
+      !doctorName ||
+      !date ||
+      !time ||
+      !doctorId ||
+      !patientName ||
+      !patientEmail
+    ) {
       res.status(400).json({
         msg: "doctorName, date, time, doctorId, patientName and patientEmail are required",
       });
       return;
     }
 
-    //  Check if the doctor even exists in our system
-    const doctor = await Doctors.findOne({ where: { id: doctorId } });
+    const doctor = await Doctors.findOne({
+      where: {
+        id: doctorId,
+      },
+    });
+
     if (!doctor) {
       res.status(400).json({ msg: "Doctor does not exist" });
       return;
     }
 
-    // Check if the doctor has any room left today
     if (doctor.dataValues.availability <= 0) {
       res.status(400).json({ msg: "No availability left for this doctor" });
       return;
     }
 
-    // Check if someone else already grabbed this specific time slot
     const slotBooked = await Slots.findOne({
-      where: { date, time, doctorId, isBooked: true },
+      where: {
+        date,
+        time,
+        doctorId,
+        isBooked: true,
+      },
     });
 
     if (slotBooked) {
@@ -51,19 +77,22 @@ AppointmentRouter.post("/book-appointment", async (req, res) => {
       return;
     }
 
-    //  Look for the patient. If they're new, create a quick account for them
-    let patient = await User.findOne({ where: { email: patientEmail } });
+    let patient = await User.findOne({
+      where: {
+        email: patientEmail,
+      },
+    });
+
     if (!patient) {
       patient = await User.create({
         name: patientName,
         email: patientEmail,
-        password: bcrypt.hashSync(uuidv4(), 5), // Create a random password since they haven't signed up properly yet
+        password: bcrypt.hashSync(uuidv4(), 5),
         mobile: "0000000000",
         role: "user",
       });
     }
 
-    //  Create the actual appointment record
     const appointment = await Appointments.create({
       patientName,
       doctorName,
@@ -73,7 +102,6 @@ AppointmentRouter.post("/book-appointment", async (req, res) => {
       doctorId,
     });
 
-    // Mark this slot as taken so no one else can book it
     await Slots.create({
       date,
       time,
@@ -82,14 +110,42 @@ AppointmentRouter.post("/book-appointment", async (req, res) => {
       isBooked: true,
     });
 
-    //  Subtract one from the doctor's available spots
     await Doctors.update(
-      { availability: doctor.dataValues.availability - 1 },
-      { where: { id: doctorId } }
+      {
+        availability: doctor.dataValues.availability - 1,
+      },
+      {
+        where: {
+          id: doctorId,
+        },
+      },
     );
 
+    // Remove the booked slot from the doctor's schedule
+    try {
+      const doctorSchedule = parseSchedule(doctor.dataValues.schedule);
+      const updatedSchedule = removeBookedSlot(doctorSchedule, date, time);
+
+      await Doctors.update(
+        {
+          schedule: JSON.stringify(updatedSchedule),
+        },
+        {
+          where: {
+            id: doctorId,
+          },
+        },
+      );
+    } catch (error) {
+      // Don't fail the appointment booking if schedule update fails
+      console.error("Error updating doctor schedule:", error);
+    }
+
     if (appointment) {
-      res.status(201).json({ msg: "Appointment booked successfully", appointment });
+      res.status(201).json({
+        msg: "Appointment booked successfully",
+        appointment,
+      });
     } else {
       res.status(500).json({ msg: "Something went wrong" });
     }
@@ -98,12 +154,19 @@ AppointmentRouter.post("/book-appointment", async (req, res) => {
   }
 });
 
-/* --- Quick check to see if a time is free --- */
+// check slot availability
+
 AppointmentRouter.post("/check-slot-availability", async (req, res) => {
   try {
     const { date, time, doctorId } = req.body;
+
     const slot = await Slots.findOne({
-      where: { date, time, doctorId, isBooked: true },
+      where: {
+        date,
+        time,
+        doctorId,
+        isBooked: true,
+      },
     });
 
     if (!slot) {
@@ -116,7 +179,6 @@ AppointmentRouter.post("/check-slot-availability", async (req, res) => {
   }
 });
 
-/* --- Get a list of the logged-in user's appointments --- */
 AppointmentRouter.get("/my-appointments", authentication, async (req, res) => {
   try {
     if (!req.user) {
@@ -125,106 +187,179 @@ AppointmentRouter.get("/my-appointments", authentication, async (req, res) => {
     }
 
     const appointments = await Appointments.findAll({
-      where: { patientId: req.user.dataValues.id },
-    });
-    res.status(200).json({ appointments });
-  } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
-  }
-});
-
-/* --- Delete an appointment and free up the slot --- */
-AppointmentRouter.delete("/delete-appointment/:id", authentication, async (req, res) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ msg: "Unauthenticated user" });
-      return;
-    }
-
-    const { id } = req.params;
-    const appointment = await Appointments.findOne({ where: { id } });
-
-    if (!appointment) {
-      res.status(400).json({ msg: "Appointment does not exist" });
-      return;
-    }
-
-    // Delete the appointment and the reserved slot
-    await Appointments.destroy({ where: { id } });
-    await Slots.destroy({
       where: {
-        doctorId: appointment.dataValues.doctorId,
-        patientId: appointment.dataValues.patientId,
-        date: appointment.dataValues.date,
-        time: appointment.dataValues.time,
+        patientId: req.user.dataValues.id,
       },
     });
-
-    // Give the doctor their availability point back (unless it was already cancelled)
-    const doctor = await Doctors.findOne({ where: { id: appointment.dataValues.doctorId } });
-    if (doctor && appointment.dataValues.status !== "cancelled") {
-      await Doctors.update(
-        { availability: doctor.dataValues.availability + 1 },
-        { where: { id: doctor.dataValues.id } }
-      );
-    }
-
-    res.status(200).json({ msg: "Appointment deleted" });
+    res.status(200).json({
+      appointments,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Something went wrong" });
   }
 });
 
-/* --- Admin only: Approve an appointment --- */
-AppointmentRouter.patch("/approve-appointment/:id", authentication, auth(["admin"]), async (req, res) => {
+AppointmentRouter.delete(
+  "/delete-appointment/:id",
+  authentication,
+  async (req, res) => {
     try {
+      if (!req.user) {
+        res.status(401).json({ msg: "Unauthenticated user" });
+        return;
+      }
+
       const { id } = req.params;
-      const appointment = await Appointments.findOne({ where: { id } });
+      const appointment = await Appointments.findOne({
+        where: {
+          id,
+        },
+      });
 
       if (!appointment) {
         res.status(400).json({ msg: "Appointment does not exist" });
         return;
       }
 
-      await Appointments.update({ status: "approved" }, { where: { id } });
+      await Appointments.destroy({
+        where: {
+          id,
+        },
+      });
+
+      await Slots.destroy({
+        where: {
+          doctorId: appointment.dataValues.doctorId,
+          patientId: appointment.dataValues.patientId,
+          date: appointment.dataValues.date,
+          time: appointment.dataValues.time,
+        },
+      });
+
+      const doctor = await Doctors.findOne({
+        where: {
+          id: appointment.dataValues.doctorId,
+        },
+      });
+
+      if (doctor && appointment.dataValues.status !== "cancelled") {
+        await Doctors.update(
+          {
+            availability: doctor.dataValues.availability + 1,
+          },
+          {
+            where: {
+              id: doctor.dataValues.id,
+            },
+          },
+        );
+      }
+
+      res.status(200).json({ msg: "Appointment deleted" });
+    } catch (error) {
+      res.status(500).json({ msg: "Something went wrong" });
+    }
+  },
+);
+
+AppointmentRouter.patch(
+  "/approve-appointment/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const appointment = await Appointments.findOne({
+        where: {
+          id,
+        },
+      });
+
+      if (!appointment) {
+        res.status(400).json({ msg: "Appointment does not exist" });
+        return;
+      }
+
+      await Appointments.update(
+        {
+          status: "approved",
+        },
+        {
+          where: {
+            id,
+          },
+        },
+      );
+
       res.status(200).json({ msg: "Appointment approved" });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Cancel an appointment (User or Admin) --- */
-AppointmentRouter.patch("/cancel-appointment/:id", authentication, auth(["admin", "user"]), async (req, res) => {
+AppointmentRouter.patch(
+  "/cancel-appointment/:id",
+  authentication,
+  auth(["admin", "user"]),
+  async (req, res) => {
     try {
       const { id } = req.params;
-      const appointment = await Appointments.findOne({ where: { id } });
+
+      const appointment = await Appointments.findOne({
+        where: {
+          id,
+        },
+      });
 
       if (!appointment) {
         res.status(400).json({ msg: "Appointment does not exist" });
         return;
       }
 
-      // Security check: Make sure users aren't trying to cancel someone else's doctor visit
-      if (req.user.dataValues.role === "user" && appointment.dataValues.patientId !== req.user.dataValues.id) {
-        res.status(403).json({ msg: "You can only cancel your own appointment" });
+      if (
+        req.user.dataValues.role === "user" &&
+        appointment.dataValues.patientId !== req.user.dataValues.id
+      ) {
+        res
+          .status(403)
+          .json({ msg: "You can only cancel your own appointment" });
         return;
       }
 
-      await Appointments.update({ status: "cancelled" }, { where: { id } });
+      await Appointments.update(
+        {
+          status: "cancelled",
+        },
+        {
+          where: {
+            id,
+          },
+        },
+      );
 
-      // If it wasn't already cancelled, give the doctor a free spot back
       if (appointment.dataValues.status !== "cancelled") {
-        const doctor = await Doctors.findOne({ where: { id: appointment.dataValues.doctorId } });
+        const doctor = await Doctors.findOne({
+          where: {
+            id: appointment.dataValues.doctorId,
+          },
+        });
+
         if (doctor) {
           await Doctors.update(
-            { availability: doctor.dataValues.availability + 1 },
-            { where: { id: doctor.dataValues.id } }
+            {
+              availability: doctor.dataValues.availability + 1,
+            },
+            {
+              where: {
+                id: doctor.dataValues.id,
+              },
+            },
           );
         }
       }
 
-      // Removing the slot reservation
       await Slots.destroy({
         where: {
           doctorId: appointment.dataValues.doctorId,
@@ -238,21 +373,48 @@ AppointmentRouter.patch("/cancel-appointment/:id", authentication, auth(["admin"
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Admin: Viewing every single appointment in the database --- */
-AppointmentRouter.get("/all-appointments", authentication, auth(["admin"]), async (req, res) => {
+AppointmentRouter.get(
+  "/user-all-appointments",
+  authentication,
+  auth(["user"]),
+  async (req, res) => {
+    const id = req.user.dataValues.id;
     try {
-      const appointments = await Appointments.findAll({});
-      res.status(200).json({ appointments });
+      const appointments = await Appointments.findAll({
+        where: {
+          patientId: id,
+        },
+      });
+      res.status(200).json({
+        appointments,
+      });
     } catch (error) {
       res.status(500).json({ msg: "Something went wrong" });
     }
-  }
+  },
 );
 
-/* --- Getting unread alerts for the user --- */
+AppointmentRouter.get(
+  "/all-appointments",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
+    try {
+      const appointments = await Appointments.findAll({});
+      res.status(200).json({
+        appointments,
+      });
+    } catch (error) {
+      res.status(500).json({ msg: "Something went wrong" });
+    }
+  },
+);
+
+// notifications to the user
+
 AppointmentRouter.get("/notifications", authentication, async (req, res) => {
   try {
     if (!req.user) {
@@ -262,72 +424,116 @@ AppointmentRouter.get("/notifications", authentication, async (req, res) => {
 
     const today = new Date().toISOString().split("T")[0];
 
-    // Finding upcoming appointments that the user hasn't been notified about yet
     const notifications1 = await Appointments.findAll({
       where: {
         patientId: req.user.dataValues.id,
-        date: { [Op.gte]: today },
+        date: {
+          [Op.gte]: today,
+        },
+
         isNotified: false,
       },
     });
 
-    // Finding appointments that were recently approved or cancelled
     const notifications2 = await Appointments.findAll({
       where: {
         patientId: req.user.dataValues.id,
-        status: { [Op.or]: ["approved", "cancelled"] },
+        status: {
+          [Op.or]: ["approved", "cancelled"],
+        },
+
         isNotified: false,
       },
     });
 
-    // Merges both lists together
     const notifications = [...notifications1, ...notifications2];
 
-    res.status(200).json({ notifications });
+    res.status(200).json({
+      notifications,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Something went wrong", error });
   }
 });
+// clear notifications
 
-/* --- Marks notifications as "seen" --- */
-AppointmentRouter.patch("/clear-notifications", authentication, async (req, res) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ msg: "Unauthenticated user" });
-      return;
-    }
+AppointmentRouter.patch(
+  "/clear-notifications",
+  authentication,
+  async (req, res) => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ msg: "Unauthenticated user" });
+        return;
+      }
 
-    const { ids } = req.body; 
+      const { ids } = req.body;
 
-    if (!Array.isArray(ids)) {
-      res.status(400).json({ msg: "ids must be an array" });
-      return;
-    }
+      if (!Array.isArray(ids)) {
+        res.status(400).json({ msg: "ids must be an array" });
+        return;
+      }
 
-    // Goes through the array and updates each notification to 'seen'
-    await Promise.all(ids.map((id) => {
-      return Appointments.update(
-        { isNotified: true },
-        { where: { id, patientId: req.user.dataValues.id } }
+      await Promise.all(
+        ids.map((id) => {
+          return Appointments.update(
+            {
+              isNotified: true,
+            },
+            {
+              where: {
+                id,
+                patientId: req.user.dataValues.id,
+              },
+            },
+          );
+        }),
       );
-    }));
 
-    res.status(200).json({ msg: "Notifications cleared" });
-  } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
-  }
-});
+      res.status(200).json({ msg: "Notifications cleared" });
+    } catch (error) {
+      res.status(500).json({ msg: "Something went wrong" });
+    }
+  },
+);
 
-/* --- Admin: See all booked slots ordered by date --- */
-AppointmentRouter.get("/slots", authentication, auth(["admin"]), async (req, res) => {
-  try {
-    const slots = await Slots.findAll({
-      order: [["date", "ASC"], ["time", "ASC"]],
-    });
-    res.status(200).json({ slots });
-  } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
-  }
-});
+AppointmentRouter.get(
+  "/slots",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
+    try {
+      const slots = await Slots.findAll({
+        order: [
+          ["date", "ASC"],
+          ["time", "ASC"],
+        ],
+      });
+
+      res.status(200).json({ slots });
+    } catch (error) {
+      res.status(500).json({ msg: "Something went wrong" });
+    }
+  },
+);
+
+AppointmentRouter.delete(
+  "/clear-slot/:id",
+  authentication,
+  auth(["admin"]),
+  async (req, res) => {
+    try {
+      await Slots.destroy({
+        where: {
+          id: req.params.id,
+        },
+      });
+
+      res.status(200).json({ msg: "Slot removed" });
+    } catch (error) {
+      res.status(500).json({ msg: "Something went wrong" });
+    }
+  },
+);
 
 module.exports = { AppointmentRouter };
